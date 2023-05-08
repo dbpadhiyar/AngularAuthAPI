@@ -1,9 +1,14 @@
 ﻿using Host.AngularAuth.Context;
 using Host.AngularAuth.Helper;
 using Host.AngularAuth.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Net;
+using System.Security.Claims;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -27,12 +32,17 @@ namespace Host.AngularAuth.Controllers
             if(userObj == null)
                 return BadRequest();
 
-            var user = _appDbContext.Users.FirstOrDefault(x => x.UserName == userObj.UserName && x.Password== userObj.Password);
+            var user = _appDbContext.Users.FirstOrDefault(x => x.UserName == userObj.UserName);
             if(user == null)
                 return NotFound(new {Message ="User Not Found!"});
 
+            if(!PasswordHasher.PasswordVerified(userObj.Password,user.Password))
+                    return BadRequest(new { Message = "Password is incorrect!" });
+
+            user.Token = CreateJWT(user);
             return Ok(new
             {
+                Token = user.Token,
                 Message = "Login Success!"
             });                
         }
@@ -75,7 +85,13 @@ namespace Host.AngularAuth.Controllers
             }) ;
         }
 
-        
+        [Authorize]
+        [HttpGet("GetAllUser")]
+        [ProducesResponseType(typeof(IEnumerable<User>),(int)HttpStatusCode.OK)]
+        public async Task<IActionResult> GetAllUsers()
+        {
+            return Ok(await _appDbContext.Users.ToListAsync());
+        }
 
         private async Task<bool> CheckUserNameExistAsync(string userName)
                 => await _appDbContext.Users.AnyAsync(a => a.UserName == userName);
@@ -92,6 +108,26 @@ namespace Host.AngularAuth.Controllers
             if (!Regex.IsMatch(password, "[@,#,$,%,^,&,*,(,),_,+,\\[,\\],{,},?,:,;,|,',\\,.,/,~,`,-,=]"))
                 sb.Append("Password Must Contain Special Character" + Environment.NewLine);
             return sb.ToString();
+        }
+
+        private string CreateJWT(User UserObj)
+        {
+            var jwtTokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.ASCII.GetBytes("Dbpadhiyar30101997.....");
+            var identity = new ClaimsIdentity(new Claim[]
+            {
+                new Claim(ClaimTypes.Role,UserObj.Role),
+                new Claim(ClaimTypes.Name,$"{UserObj.FirstName} {UserObj.LastName}")
+            });
+            var credentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256);
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = identity,
+                Expires = DateTime.Now.AddMinutes(59),
+                SigningCredentials = credentials
+            };
+            var token = jwtTokenHandler.CreateToken(tokenDescriptor);
+            return jwtTokenHandler.WriteToken(token);   
         }
 
     }

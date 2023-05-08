@@ -16,7 +16,7 @@ namespace Host.AngularAuth.Helper
         {
             byte[] salt;
             rng.GetBytes(salt = new byte[SaltSize]);
-            var key = new Rfc2898DeriveBytes(password, salt,Iterations);
+            var key = new Rfc2898DeriveBytes(password, salt, Iterations);
             var hash = key.GetBytes(HashSize);
 
             var hashBytes = new byte[SaltSize + HashSize];
@@ -28,13 +28,13 @@ namespace Host.AngularAuth.Helper
             return base64Hash;
         }
 
-        public static bool isVerified(string password, string base64Hash)
+        public static bool PasswordVerified(string password, string base64Hash)
         {
-            var hashBytes = Convert.FromBase64String(password);
+            var hashBytes = Convert.FromBase64String(base64Hash);
             var salt = new byte[SaltSize];
             Array.Copy(hashBytes, 0, salt, 0, SaltSize);
 
-            var key = new Rfc2898DeriveBytes(password,salt,Iterations);
+            var key = new Rfc2898DeriveBytes(password, salt, Iterations);
             byte[] hash = key.GetBytes(HashSize);
 
             for (var i = 0; i < HashSize; i++)
